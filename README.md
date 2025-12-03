@@ -1,14 +1,44 @@
-# Welcome to your CDK TypeScript project
+# AWS Lambda Managed Instaces minimal example
 
-This is a blank project for CDK development with TypeScript.
+## Prequisites
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+- A VPC with private subnets
+- Node.js 24.x
+- AWS credentials configured
 
-## Useful commands
+## Deployment
 
-* `npm run build`   compile typescript to js
-* `npm run watch`   watch for changes and compile
-* `npm run test`    perform the jest unit tests
-* `npx cdk deploy`  deploy this stack to your default AWS account/region
-* `npx cdk diff`    compare deployed stack with current state
-* `npx cdk synth`   emits the synthesized CloudFormation template
+```bash
+npx cdk deploy -c vpcId=<VPC_ID>
+```
+
+## Components
+
+```mermaid
+graph TB
+    Stack[LambdaMiStack]
+    VPC[VPC<br/>Existing VPC Lookup]
+    Fn[Lambda Function<br/>MyFunction<br/>Node.js 24.x ARM64]
+    SG[Security Group<br/>CapacityProviderSG]
+    Role[IAM Role<br/>OperatorRole]
+    CP[Lambda Capacity Provider<br/>MyCapacityProvider<br/>Max 32 vCPU, ARM64]
+    
+    Stack --> VPC
+    Stack --> Fn
+    Stack --> SG
+    Stack --> Role
+    Stack --> CP
+    
+    VPC -.->|lookup| SG
+    VPC -.->|private subnets| CP
+    SG -->|attached to| CP
+    Role -->|operator role| CP
+    CP -->|manages| Fn
+    
+    style Stack fill:#e1f5ff
+    style VPC fill:#fff4e6
+    style Fn fill:#e8f5e9
+    style CP fill:#f3e5f5
+    style SG fill:#fff3e0
+    style Role fill:#fce4ec
+```

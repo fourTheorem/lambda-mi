@@ -1,0 +1,34 @@
+Resources:
+  ExampleOperatorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AWSLambdaManagedEC2ResourceOperator"
+  ExampleCapacityProvider:
+    Type: AWS::Lambda::CapacityProvider
+    Properties:
+      CapacityProviderName: "ExampleCapacityProvider"
+      InstanceRequirements:
+        Architectures:
+          - x86_64
+        AllowedInstanceTypes:
+          - m5.large
+      PermissionsConfig:
+        CapacityProviderOperatorRoleArn: !GetAtt ExampleOperatorRole.Arn
+      VpcConfig:
+        SubnetIds:
+          - subnet-08952b733d9560938
+          - subnet-08fa6cbbf146659a8
+        SecurityGroupIds: []
+      CapacityProviderScalingConfig:
+        MaxVCpuCount: 50
+        ScalingMode: "Auto"
