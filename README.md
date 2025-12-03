@@ -1,6 +1,9 @@
 # AWS Lambda Managed Instaces minimal example
 
-## Prequisites
+## Overview
+This AWS CDK stack demonstrates how to set up a Lambda Capacity Provider using AWS Lambda Managed Instances (Lambda MI) to run a Node.js 24.x Lambda function on ARM64 architecture within an existing VPC.
+
+## Prerequisites
 
 - A VPC with private subnets
 - Node.js 24.x
@@ -35,10 +38,10 @@ graph TB
     Role -->|operator role| CP
     CP -->|manages| Fn
     
-    style Stack fill:#e1f5ff
-    style VPC fill:#fff4e6
-    style Fn fill:#e8f5e9
-    style CP fill:#f3e5f5
-    style SG fill:#fff3e0
-    style Role fill:#fce4ec
+    style Stack fill:#0969da,stroke:#1f6feb,color:#fff
+    style VPC fill:#bf8700,stroke:#9a6700,color:#fff
+    style Fn fill:#1a7f37,stroke:#26a148,color:#fff
+    style CP fill:#8250df,stroke:#9a6feb,color:#fff
+    style SG fill:#bc4c00,stroke:#e36209,color:#fff
+    style Role fill:#d1242f,stroke:#e34850,color:#fff
 ```
