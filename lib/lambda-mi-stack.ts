@@ -19,6 +19,13 @@ export class LambdaMiStack extends cdk.Stack {
       architecture: lambda.Architecture.ARM_64,
     });
 
+    const fn2 = new lambda.Function(this, 'MyFunction2', {
+      runtime: lambda.Runtime.NODEJS_24_X,
+      code: lambda.Code.fromInline('exports.handler = async () => "Hello, World!";'),
+      handler: 'index.handler',
+      architecture: lambda.Architecture.ARM_64,
+    });
+
     const capacityProviderSg = new ec2.SecurityGroup(this, 'CapacityProviderSG', {
       vpc,
       allowAllOutbound: true,
@@ -40,7 +47,31 @@ export class LambdaMiStack extends cdk.Stack {
       maxVCpuCount: 32,
     });
 
-    capacityProvider.addFunction(fn);
+    capacityProvider.addFunction(fn, {
+      executionEnvironmentMemoryGiBPerVCpu: 2.0,
+      perExecutionEnvironmentMaxConcurrency: 64,
+      latestPublishedScalingConfig: {
+        minExecutionEnvironments: 1,
+        maxExecutionEnvironments: 1
+      }
+    });
 
+    const capacityProviderManual = new lambda.CapacityProvider(this, 'MyCapacityProviderManual', {
+      subnets: vpc.privateSubnets,
+      securityGroups: [capacityProviderSg],
+      operatorRole,
+      architectures: [lambda.Architecture.ARM_64],
+      scalingOptions: lambda.ScalingOptions.manual([
+        lambda.TargetTrackingScalingPolicy.cpuUtilization(50),
+      ]),
+    });
+    capacityProviderManual.addFunction(fn2, {
+      executionEnvironmentMemoryGiBPerVCpu: 2.0,
+      perExecutionEnvironmentMaxConcurrency: 64,
+      latestPublishedScalingConfig: {
+        minExecutionEnvironments: 1,
+        maxExecutionEnvironments: 1
+      }
+    });
   }
 }
