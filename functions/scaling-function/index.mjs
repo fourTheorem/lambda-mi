@@ -1,10 +1,32 @@
+/**
+ * Controls Lambda MI execution environments for manual scaling capacity providers.
+ *
+ * Supports two operations:
+ * - Scale (up/down): Sets min/max execution environments
+ * - Check: Polls if scaling config is applied and ready
+ *
+ * Example events from Step Functions:
+ *
+ * ScaleUpProcessor / ScaleDownProcessor:
+ * {
+ *   "functionName": "LambdaMiStack-VideoProcessorFunction...",
+ *   "minExecutionEnvironments": 100, // or 0 for scale down
+ *   "maxExecutionEnvironments": 100  // or 0 for scale down
+ * }
+ *
+ * CheckScalingConfig:
+ * {
+ *   "action": "check",
+ *   "functionName": "LambdaMiStack-VideoProcessorFunction..."
+ * }
+ */
 import {
   GetFunctionScalingConfigCommand,
   LambdaClient,
   PutFunctionScalingConfigCommand,
 } from '@aws-sdk/client-lambda'
 
-const lambda = new LambdaClient({})
+const lambda = new LambdaClient()
 
 export const handler = async (event) => {
   console.log('Scaling request:', JSON.stringify(event))
@@ -17,7 +39,7 @@ export const handler = async (event) => {
   } = event
 
   if (action === 'check') {
-    // Check if scaling config is applied and ready
+    // $LATEST.PUBLISHED targets the auto-published version that Lambda MI creates
     const command = new GetFunctionScalingConfigCommand({
       FunctionName: functionName,
       Qualifier: '$LATEST.PUBLISHED',
@@ -26,6 +48,7 @@ export const handler = async (event) => {
     const response = await lambda.send(command)
     console.log('Scaling config check:', response)
 
+    // AppliedFunctionScalingConfig reflects actual state (vs requested which may still be provisioning)
     const applied = response.AppliedFunctionScalingConfig || {}
     const isReady =
       (applied.MinExecutionEnvironments || 0) > 0 &&

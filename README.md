@@ -23,7 +23,6 @@ This pattern is ideal for Lambda MI because:
 
 ## Prerequisites
 
-- A VPC with private subnets
 - Node.js 24.x
 - AWS credentials configured
 - AWS CDK CLI (`npm install -g aws-cdk`)
@@ -39,6 +38,10 @@ cd functions/video-processor && npm install && cd ../..
 ## Deployment
 
 ```bash
+# Creates a new VPC automatically
+npx cdk deploy
+
+# Or use an existing VPC
 npx cdk deploy -c vpcId=<VPC_ID>
 ```
 
@@ -245,17 +248,20 @@ npm run build
 # Watch mode
 npm run watch
 
-# Run tests
-npm run test
+# Lint code
+npm run lint
+
+# Format code
+npm run format
 
 # Synthesize CloudFormation
 npx cdk synth
 
 # View differences
-npx cdk diff -c vpcId=<VPC_ID>
+npx cdk diff
 
 # Deploy specific stack
-npx cdk deploy LambdaMiStack -c vpcId=<VPC_ID>
+npx cdk deploy LambdaMiStack
 ```
 
 ## Monitoring
@@ -273,7 +279,7 @@ Monitor capacity provider metrics:
 ## Clean Up
 
 ```bash
-npx cdk destroy -c vpcId=<VPC_ID>
+npx cdk destroy
 ```
 
-This will remove all resources including the DynamoDB table and logs.
+This will remove all resources including the VPC (if created), DynamoDB table, and logs.

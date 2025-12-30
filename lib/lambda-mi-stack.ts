@@ -1,3 +1,5 @@
+// CDK stack demonstrating Lambda MI with auto-scaling (always-on API) vs manual scaling (on-demand processing)
+// The video processing workflow is simulated - focus on the capacity provider patterns
 import * as path from 'node:path'
 import * as cdk from 'aws-cdk-lib'
 import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2'
@@ -16,13 +18,15 @@ export class LambdaMiStack extends cdk.Stack {
     super(scope, id, props)
 
     const vpcId = scope.node.tryGetContext('vpcId')
-    const vpc = ec2.Vpc.fromLookup(this, 'VPC', { vpcId })
+    const vpc = vpcId
+      ? ec2.Vpc.fromLookup(this, 'VPC', { vpcId })
+      : new ec2.Vpc(this, 'VPC')
 
     const videosTable = new dynamodb.Table(this, 'VideosTable', {
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
-      pointInTimeRecovery: true,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     })
 
     videosTable.addGlobalSecondaryIndex({
@@ -41,6 +45,7 @@ export class LambdaMiStack extends cdk.Stack {
       },
     )
 
+    // Lambda MI requires an operator role with permissions to manage EC2 resources (instances, ENIs, etc.)
     const operatorRole = new iam.Role(this, 'OperatorRole', {
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
     })
@@ -51,6 +56,7 @@ export class LambdaMiStack extends cdk.Stack {
       ),
     )
 
+    // Auto-scaling: Lambda MI manages execution environments automatically based on demand
     const apiCapacityProvider = new lambda.CapacityProvider(
       this,
       'ApiCapacityProvider',
@@ -64,6 +70,8 @@ export class LambdaMiStack extends cdk.Stack {
       },
     )
 
+    // Manual scaling: we control when to scale via API calls (see scalingFunction below)
+    // Target tracking policy keeps CPU at 70% utilization once environments are provisioned
     const processorCapacityProvider = new lambda.CapacityProvider(
       this,
       'ProcessorCapacityProvider',
@@ -81,7 +89,7 @@ export class LambdaMiStack extends cdk.Stack {
     const apiFunction = new lambda.Function(this, 'VideoApiFunction', {
       runtime: lambda.Runtime.NODEJS_24_X,
       code: lambda.Code.fromAsset(
-        path.join(__dirname, '../functions/video-api'),
+        path.join(__dirname, '..', 'functions', 'video-api'),
       ),
       handler: 'index.handler',
       architecture: lambda.Architecture.ARM_64,
@@ -98,6 +106,7 @@ export class LambdaMiStack extends cdk.Stack {
 
     videosTable.grantReadWriteData(apiFunction)
 
+    // Keep 1 environment always warm for low-latency API responses
     apiCapacityProvider.addFunction(apiFunction, {
       executionEnvironmentMemoryGiBPerVCpu: 2.0,
       perExecutionEnvironmentMaxConcurrency: 64,
@@ -113,7 +122,7 @@ export class LambdaMiStack extends cdk.Stack {
       {
         runtime: lambda.Runtime.NODEJS_24_X,
         code: lambda.Code.fromAsset(
-          path.join(__dirname, '../functions/video-processor'),
+          path.join(__dirname, '..', 'functions', 'video-processor'),
         ),
         handler: 'index.handler',
         architecture: lambda.Architecture.ARM_64,
@@ -131,6 +140,7 @@ export class LambdaMiStack extends cdk.Stack {
 
     videosTable.grantReadWriteData(processorFunction)
 
+    // Start with 0 environments (cost-efficient) - scale up on-demand via Step Functions workflow
     processorCapacityProvider.addFunction(processorFunction, {
       executionEnvironmentMemoryGiBPerVCpu: 2.0,
       perExecutionEnvironmentMaxConcurrency: 32,
@@ -146,7 +156,7 @@ export class LambdaMiStack extends cdk.Stack {
       architecture: lambda.Architecture.ARM_64,
       timeout: cdk.Duration.seconds(30),
       code: lambda.Code.fromAsset(
-        path.join(__dirname, '../functions/scaling-function'),
+        path.join(__dirname, '..', 'functions', 'scaling-function'),
       ),
       logGroup: new logs.LogGroup(this, 'ScalingFunctionLogGroup', {
         retention: logs.RetentionDays.ONE_WEEK,
@@ -154,6 +164,7 @@ export class LambdaMiStack extends cdk.Stack {
       }),
     })
 
+    // Permissions to control the processor's execution environments via the scaling config API
     scalingFunction.addToRolePolicy(
       new iam.PolicyStatement({
         actions: [
@@ -164,6 +175,8 @@ export class LambdaMiStack extends cdk.Stack {
       }),
     )
 
+    // Step Functions workflow: scale up → poll until ready → process → scale down
+    // This pattern ensures environments are warm before processing, then releases them after
     const scaleUpTask = new tasks.LambdaInvoke(this, 'ScaleUpProcessor', {
       lambdaFunction: scalingFunction,
       payload: sfn.TaskInput.fromObject({

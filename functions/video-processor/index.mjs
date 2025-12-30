@@ -1,11 +1,11 @@
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 import {
-  DynamoDBClient,
-  GetItemCommand,
-  UpdateItemCommand,
-} from '@aws-sdk/client-dynamodb'
-import { marshall, unmarshall } from '@aws-sdk/util-dynamodb'
+  DynamoDBDocumentClient,
+  GetCommand,
+  UpdateCommand,
+} from '@aws-sdk/lib-dynamodb'
 
-const dynamodb = new DynamoDBClient({})
+const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient())
 const TABLE_NAME = process.env.TABLE_NAME
 
 export const handler = async (event) => {
@@ -18,9 +18,9 @@ export const handler = async (event) => {
   }
 
   const result = await dynamodb.send(
-    new GetItemCommand({
+    new GetCommand({
       TableName: TABLE_NAME,
-      Key: marshall({ id: videoId }),
+      Key: { id: videoId },
     }),
   )
 
@@ -28,7 +28,7 @@ export const handler = async (event) => {
     throw new Error(`Video ${videoId} not found`)
   }
 
-  const video = unmarshall(result.Item)
+  const video = result.Item
   console.log('Processing video:', video)
 
   await updateVideoStatus(videoId, 'processing', {
@@ -168,16 +168,18 @@ async function updateVideoStatus(videoId, status, additionalFields = {}) {
   })
 
   await dynamodb.send(
-    new UpdateItemCommand({
+    new UpdateCommand({
       TableName: TABLE_NAME,
-      Key: marshall({ id: videoId }),
+      Key: { id: videoId },
       UpdateExpression: `SET ${updateExpressions.join(', ')}`,
       ExpressionAttributeNames: expressionAttributeNames,
-      ExpressionAttributeValues: marshall(expressionAttributeValues),
+      ExpressionAttributeValues: expressionAttributeValues,
     }),
   )
 }
 
+// Simulates CPU-intensive work (replace with real ffmpeg/ML processing in production)
+// Uses busy-loop math to generate actual CPU load for Lambda MI scaling demonstration
 async function simulateWork(durationMs) {
   const startTime = Date.now()
   let count = 0

@@ -1,16 +1,16 @@
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
+import { SFNClient, StartExecutionCommand } from '@aws-sdk/client-sfn'
 import {
-  DynamoDBClient,
-  GetItemCommand,
-  PutItemCommand,
+  DynamoDBDocumentClient,
+  GetCommand,
+  PutCommand,
   QueryCommand,
   ScanCommand,
-  UpdateItemCommand,
-} from '@aws-sdk/client-dynamodb'
-import { SFNClient, StartExecutionCommand } from '@aws-sdk/client-sfn'
-import { marshall, unmarshall } from '@aws-sdk/util-dynamodb'
+  UpdateCommand,
+} from '@aws-sdk/lib-dynamodb'
 
-const dynamodb = new DynamoDBClient({})
-const sfn = new SFNClient({})
+const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient())
+const sfn = new SFNClient()
 
 const TABLE_NAME = process.env.TABLE_NAME
 const STATE_MACHINE_ARN = process.env.STATE_MACHINE_ARN
@@ -101,9 +101,9 @@ async function createVideo(event) {
   }
 
   await dynamodb.send(
-    new PutItemCommand({
+    new PutCommand({
       TableName: TABLE_NAME,
-      Item: marshall(video),
+      Item: video,
     }),
   )
 
@@ -118,7 +118,7 @@ async function listVideos(event) {
   const queryParams = event.queryStringParameters || {}
   const status = queryParams.status
 
-  let items
+  let videos
   if (status) {
     const result = await dynamodb.send(
       new QueryCommand({
@@ -126,20 +126,18 @@ async function listVideos(event) {
         IndexName: 'StatusIndex',
         KeyConditionExpression: '#status = :status',
         ExpressionAttributeNames: { '#status': 'status' },
-        ExpressionAttributeValues: marshall({ ':status': status }),
+        ExpressionAttributeValues: { ':status': status },
       }),
     )
-    items = result.Items || []
+    videos = result.Items || []
   } else {
     const result = await dynamodb.send(
       new ScanCommand({
         TableName: TABLE_NAME,
       }),
     )
-    items = result.Items || []
+    videos = result.Items || []
   }
-
-  const videos = items.map((item) => unmarshall(item))
 
   return {
     statusCode: 200,
@@ -158,9 +156,9 @@ async function getVideo(videoId) {
   }
 
   const result = await dynamodb.send(
-    new GetItemCommand({
+    new GetCommand({
       TableName: TABLE_NAME,
-      Key: marshall({ id: videoId }),
+      Key: { id: videoId },
     }),
   )
 
@@ -172,12 +170,10 @@ async function getVideo(videoId) {
     }
   }
 
-  const video = unmarshall(result.Item)
-
   return {
     statusCode: 200,
     headers,
-    body: JSON.stringify(video),
+    body: JSON.stringify(result.Item),
   }
 }
 
@@ -191,9 +187,9 @@ async function triggerProcessing(videoId) {
   }
 
   const result = await dynamodb.send(
-    new GetItemCommand({
+    new GetCommand({
       TableName: TABLE_NAME,
-      Key: marshall({ id: videoId }),
+      Key: { id: videoId },
     }),
   )
 
@@ -205,9 +201,7 @@ async function triggerProcessing(videoId) {
     }
   }
 
-  const video = unmarshall(result.Item)
-
-  if (video.status === 'processing') {
+  if (result.Item.status === 'processing') {
     return {
       statusCode: 409,
       headers,
@@ -216,15 +210,15 @@ async function triggerProcessing(videoId) {
   }
 
   await dynamodb.send(
-    new UpdateItemCommand({
+    new UpdateCommand({
       TableName: TABLE_NAME,
-      Key: marshall({ id: videoId }),
+      Key: { id: videoId },
       UpdateExpression: 'SET #status = :status, updatedAt = :updatedAt',
       ExpressionAttributeNames: { '#status': 'status' },
-      ExpressionAttributeValues: marshall({
+      ExpressionAttributeValues: {
         ':status': 'queued',
         ':updatedAt': new Date().toISOString(),
-      }),
+      },
     }),
   )
 
