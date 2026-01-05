@@ -181,8 +181,8 @@ export class LambdaMiStack extends cdk.Stack {
       lambdaFunction: scalingFunction,
       payload: sfn.TaskInput.fromObject({
         functionName: processorFunction.functionName,
-        minExecutionEnvironments: 100,
-        maxExecutionEnvironments: 100,
+        minExecutionEnvironments: 1, // NOTE: set here whatever min you need for your workload
+        maxExecutionEnvironments: 10, // NOTE: set here whatever max you need for your workload
       }),
       resultPath: '$.scaleUpResult',
     })
