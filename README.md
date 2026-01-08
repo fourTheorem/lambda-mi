@@ -45,6 +45,9 @@ npx cdk deploy
 npx cdk deploy -c vpcId=<VPC_ID>
 ```
 
+> [!WARNING]
+> The default VPC includes NAT gateways, which incur hourly charges. For cost-sensitive environments, consider using an existing VPC or destroying the stack when not in use.
+
 After deployment, note the `ApiEndpoint` output for testing.
 
 ## Architecture
