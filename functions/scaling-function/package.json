@@ -1,0 +1,8 @@
+{
+  "name": "scaling-function",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@aws-sdk/client-lambda": "^3.962.0"
+  }
+}
